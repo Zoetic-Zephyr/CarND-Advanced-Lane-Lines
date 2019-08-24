@@ -1,3 +1,5 @@
+# STEP 1: Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
+
 # Run the code in the cell below to extract object points and image points for camera calibration.
 import numpy as np
 import cv2
@@ -20,8 +22,6 @@ imgpoints = [] # 2d points in image plane.
 
 # Make a list of calibration images
 images = glob.glob('camera_cal/calibration*.jpg')
-print("images")
-print(images)
 
 # Step through the list and search for chessboard corners
 for idx, fname in enumerate(images):
