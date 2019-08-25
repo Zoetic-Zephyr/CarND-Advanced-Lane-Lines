@@ -14,6 +14,30 @@ ym_per_pix = 20/720 # meters per pixel in y dimension
 xm_per_pix = 3.7/780 # meters per pixel in x dimension
 
 
+class Line():
+    def __init__(self):
+        # was the line detected in the last iteration?
+        self.detected = False  
+        # x values of the last n fits of the line
+        self.recent_xfitted = [] 
+        #average x values of the fitted line over the last n iterations
+        self.bestx = None     
+        #polynomial coefficients averaged over the last n iterations
+        self.best_fit = None  
+        #polynomial coefficients for the most recent fit
+        self.current_fit = [np.array([False])]  
+        #radius of curvature of the line in some units
+        self.radius_of_curvature = None 
+        #distance in meters of vehicle center from the line
+        self.line_base_pos = None 
+        #difference in fit coefficients between last and new fits
+        self.diffs = np.array([0,0,0], dtype='float') 
+        #x values for detected line pixels
+        self.allx = None  
+        #y values for detected line pixels
+        self.ally = None  
+
+
 def calibrate_camera():
     # * dummy function only need to be run once, check calibrate_camera.py for details
     pass
@@ -246,34 +270,25 @@ def measure_curvature_real(left_fit_cr, right_fit_cr):
     return left_curverad, right_curverad
 
 
-def process_image(img):
-    calibrate_camera()  # * dummy, done already previously
-
-    stacked, clr_grad_out = clr_grad_thres(img)
-
-    # Read in the saved camera matrix and distortion coefficients
-    # These are the arrays you calculated using cv2.calibrateCamera()
-    dist_pickle = pickle.load( open( "camera_cal/cali_pickle.p", "rb" ) )
-    mtx = dist_pickle["mtx"]
-    dist = dist_pickle["dist"]
-
-    top_down, perspective_M, Minv, undist_clr = undist_warp(clr_grad_out, mtx, dist, img)
-
-    # Load our image
-    # binary_warped = mpimg.imread('warped_example.jpg')
-
-    out_img, left_fit_cr, right_fit_cr, center_bottom_x, left_fitx, right_fitx = fit_polynomial(top_down)
-
+def gen_hud_text(left_fit_cr, right_fit_cr, center_bottom_x):
     # Calculate the radius of curvature in meters for both lane lines
     left_curverad, right_curverad = measure_curvature_real(left_fit_cr, right_fit_cr)
+    avg_curverad = (left_curverad + right_curverad) / 2
+
+    hud_text = "Radius of Curvature = " + str("{0:.2f}".format(avg_curverad)) + "(m)    "
+
     vehicle_offset = (667 - center_bottom_x) * xm_per_pix
 
-    print(left_curverad, 'm', right_curverad, 'm')
     if vehicle_offset >= 0:
-        print("Vehicle at right:", vehicle_offset)
+        hud_text += "Vehicle at right: " + str("{0:.2f}".format(vehicle_offset)) + "(m)"
     else:
-        print("Vehicle at left:", -vehicle_offset)
+        hud_text += "Vehicle at left: " + str("{0:.2f}".format(-vehicle_offset)) + "(m)"
 
+    return hud_text
+
+
+def warp_back(top_down, left_fitx, right_fitx, Minv, img, undist_clr, \
+    left_fit_cr, right_fit_cr, center_bottom_x):
     # ! Warp the detected lane boundaries back onto the original image.
     ploty = np.linspace(0, 719, num=720)# to cover same y-range as image
 
@@ -290,17 +305,55 @@ def process_image(img):
     cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
 
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
-    newwarp = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0])) 
+    newwarp = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0]))
+
+    # ! Text Overlay
+    # * Block below is not encapsulated into a text_overlay() function because cv2.putText() returns void
+    font                   = cv2.FONT_HERSHEY_SIMPLEX
+    bottomLeftCornerOfText = (150, 50)
+    fontScale              = 1
+    fontColor              = (255,255,255)
+    lineType               = 2
+    hud_text               = gen_hud_text(left_fit_cr, right_fit_cr, center_bottom_x)
+
+    cv2.putText(newwarp,hud_text, 
+        bottomLeftCornerOfText, 
+        font, 
+        fontScale,
+        fontColor,
+        lineType)
+
     # Combine the result with the original image
     result = cv2.addWeighted(undist_clr, 1, newwarp, 0.3, 0)
 
     return result
 
 
+def process_image(img):
+    calibrate_camera()  # * dummy, done already previously
+
+    stacked, clr_grad_out = clr_grad_thres(img)
+
+    # Read in the saved camera matrix and distortion coefficients
+    # These are the arrays you calculated using cv2.calibrateCamera()
+    dist_pickle = pickle.load( open( "camera_cal/cali_pickle.p", "rb" ) )
+    mtx = dist_pickle["mtx"]
+    dist = dist_pickle["dist"]
+
+    top_down, perspective_M, Minv, undist_clr = undist_warp(clr_grad_out, mtx, dist, img)
+
+    out_img, left_fit_cr, right_fit_cr, center_bottom_x, left_fitx, right_fitx = fit_polynomial(top_down)
+
+    result = warp_back(top_down, left_fitx, right_fitx, Minv, img, undist_clr, \
+                       left_fit_cr, right_fit_cr, center_bottom_x)
+
+    return result
+
+
 def main():
     out_name = 'out_project_video.mp4'
-    # clip1 = VideoFileClip("project_video.mp4").subclip(0,5)
-    clip1 = VideoFileClip("project_video.mp4")
+    clip1 = VideoFileClip("project_video.mp4").subclip(0,2)
+    # clip1 = VideoFileClip("project_video.mp4")
     out_video = clip1.fl_image(process_image) #NOTE: this function expects color images!!
     out_video.write_videofile(out_name, audio=False)
 

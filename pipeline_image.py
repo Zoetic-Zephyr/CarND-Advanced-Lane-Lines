@@ -320,7 +320,6 @@ def main():
     left_curverad, right_curverad = measure_curvature_real(left_fit_cr, right_fit_cr)
     vehicle_offset = (667 - center_bottom_x) * xm_per_pix
 
-    print(left_curverad, 'm', right_curverad, 'm')
     if vehicle_offset >= 0:
         print("Vehicle at right:", vehicle_offset)
     else:
