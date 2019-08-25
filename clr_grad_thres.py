@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
 
-image = mpimg.imread('test_images/test6.jpg')
+image = mpimg.imread('test_images/straight_lines2.jpg')
 
 # Edit this function to create your own pipeline.
 def pipeline(img, s_thresh=(170, 255), sx_thresh=(20, 100)):

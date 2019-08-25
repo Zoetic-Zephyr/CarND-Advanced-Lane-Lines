@@ -13,7 +13,7 @@ mtx = dist_pickle["mtx"]
 dist = dist_pickle["dist"]
 
 # Read in an image
-img = cv2.imread('test_images/test6.jpg')
+img = cv2.imread('test_images/straight_lines2.jpg')
 
 # MODIFY THIS FUNCTION TO GENERATE OUTPUT 
 # THAT LOOKS LIKE THE IMAGE ABOVE
@@ -34,21 +34,29 @@ def corners_unwarp(img, mtx, dist):
         #We recommend using the automatic detection of corners in your code
     src = np.float32(
         [
-            [588, 459],
-            [696, 459],
-            [975, 637],
-            [327, 637]
+            [557, 476],
+            [731, 476],
+            [1042, 674],
+            [281, 674]
         ]
     )
+            # [588, 459],
+            # [696, 459],
+            # [975, 637],
+            # [327, 637]
     # c) define 4 destination points dst = np.float32([[,],[,],[,],[,]])
     dst = np.float32(
         [
-            [300, 0],
-            [950, 0],
-            [950, 700],
-            [300, 700]
+            [280, 0],
+            [1060, 0],
+            [1060, 700],
+            [280, 700]
         ]
     )
+            # [300, 0],
+            # [1000, 0],
+            # [1000, 700],
+            # [300, 700]
     # d) use cv2.getPerspectiveTransform() to get M, the transform matrix
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src) # This is unnecessaary for this problem
