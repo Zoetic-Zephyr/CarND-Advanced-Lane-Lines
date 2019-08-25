@@ -4,6 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
+# Import everything needed to edit/save/watch video clips
+from moviepy.editor import VideoFileClip
+from IPython.display import HTML
+
 # ! GLOBALS
 # Define conversions in x and y from pixels space to meters
 ym_per_pix = 20/720 # meters per pixel in y dimension
@@ -188,13 +192,9 @@ def fit_polynomial(binary_warped):
     # ! np.polyfit() outputs the parameters of the 二项式
     # print(left_fit)
 
-    # ! ym and xm are added to get the left&right_fit_cr
-    # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 20/720 # meters per pixel in y dimension
-    xm_per_pix = 3.7/780 # meters per pixel in x dimension
-
     ##### TO-DO: Fit new polynomials to x,y in world space #####
     ##### Utilize `ym_per_pix` & `xm_per_pix` here #####
+    # ! ym and xm are used here to get the left&right_fit_cr
     left_fit_cr = np.polyfit(lefty*ym_per_pix, leftx*xm_per_pix, 2)
     right_fit_cr = np.polyfit(righty*ym_per_pix, rightx*xm_per_pix, 2)
 
@@ -228,13 +228,7 @@ def fit_polynomial(binary_warped):
 
 
 def measure_curvature_real(left_fit_cr, right_fit_cr):
-    '''
-    Calculates the curvature of polynomial functions in meters.
-    '''
-    # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 20/720 # meters per pixel in y dimension
-    # ! techniquelly line below is useless, it is useful at line 187
-    xm_per_pix = 3.7/780 # meters per pixel in x dimension
+    # !Calculates the curvature of polynomial functions in meters.
     
     # Define y-value where we want radius of curvature
     # We'll choose the maximum y-value, corresponding to the bottom of the image
@@ -252,32 +246,10 @@ def measure_curvature_real(left_fit_cr, right_fit_cr):
     return left_curverad, right_curverad
 
 
-def main():
+def process_image(img):
     calibrate_camera()  # * dummy, done already previously
 
-    # Read in an image
-    img = mpimg.imread('test_images/test5.jpg')
-    # image = mpimg.imread('bridge_shadow.jpg')
-
-    stacked, result = clr_grad_thres(img)
-
-    '''
-    # Plot the result
-    f, (ax1, ax3) = plt.subplots(1, 2, figsize=(8, 3))  # ! can also display (ax1, ax2) or (ax2, ax3)
-    f.tight_layout()
-
-    ax1.imshow(img)
-    ax1.set_title('Original Image', fontsize=10)
-
-    ax2.imshow(stacked)
-    ax2.set_title('Stacked Channels', fontsize=10)
-
-    ax3.imshow(result, cmap="gray")
-    ax3.set_title('clr_grad_thres Result', fontsize=10)
-
-    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
-    plt.show()
-    '''
+    stacked, clr_grad_out = clr_grad_thres(img)
 
     # Read in the saved camera matrix and distortion coefficients
     # These are the arrays you calculated using cv2.calibrateCamera()
@@ -285,36 +257,12 @@ def main():
     mtx = dist_pickle["mtx"]
     dist = dist_pickle["dist"]
 
-    top_down, perspective_M, Minv, undist_clr = undist_warp(result, mtx, dist, img)
-
-    '''
-    # Plot the result
-    # ! line below is unecessary as now I'm using mpimg instead of cv2 to read image
-    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # for displaying normal color
-    # ! line below is unecessary as top_down is grayscaled
-    # top_down = cv2.cvtColor(top_down, cv2.COLOR_BGR2RGB)    # for displaying normal color
-
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 3))
-    f.tight_layout()
-    ax1.imshow(img)
-    ax1.set_title('Original Image', fontsize=10)
-    ax2.imshow(top_down, cmap="gray")
-    ax2.set_title('Undistorted and Warped Image', fontsize=10)
-    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
-
-    plt.show()
-    '''
+    top_down, perspective_M, Minv, undist_clr = undist_warp(clr_grad_out, mtx, dist, img)
 
     # Load our image
     # binary_warped = mpimg.imread('warped_example.jpg')
 
     out_img, left_fit_cr, right_fit_cr, center_bottom_x, left_fitx, right_fitx = fit_polynomial(top_down)
-    '''
-    # ! Comment together
-    # Plot the result
-    plt.imshow(out_img)
-    plt.show()
-    '''
 
     # Calculate the radius of curvature in meters for both lane lines
     left_curverad, right_curverad = measure_curvature_real(left_fit_cr, right_fit_cr)
@@ -345,9 +293,16 @@ def main():
     newwarp = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0])) 
     # Combine the result with the original image
     result = cv2.addWeighted(undist_clr, 1, newwarp, 0.3, 0)
-    plt.imshow(result)
-    plt.show()
 
+    return result
+
+
+def main():
+    out_name = 'out_project_video.mp4'
+    # clip1 = VideoFileClip("project_video.mp4").subclip(0,5)
+    clip1 = VideoFileClip("project_video.mp4")
+    out_video = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+    out_video.write_videofile(out_name, audio=False)
 
 
 main()
