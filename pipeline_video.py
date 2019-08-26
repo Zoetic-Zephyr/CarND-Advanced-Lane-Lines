@@ -15,8 +15,8 @@ from global_vars import ym_per_pix, xm_per_pix, thumb_ratio, H, W, vid_offx, vid
 '''
 FINE-TUNING GUIDE:
 1. sx_thresh = (45, 135), not (20, 100) => better expected lane line angle
-2. margin = 200 or 400, not 100 => too narrow, may not detect lane line if big curvature and disruption (shadow)
-3. smoothing => big shadows
+2. margin = 200 and 370, not 100 => too narrow, may not detect lane line if big curvature and disruption (shadow)
+3. smoothing using 200 frames buffer => big shadows
 '''
 
 def calibrate_camera():
