@@ -19,7 +19,7 @@ def find_lane_pixels(binary_warped):
     # Choose the number of sliding windows
     nwindows = 9
     # Set the width of the windows +/- margin
-    margin = 200
+    margin = 370
     # Set minimum number of pixels found to recenter window
     minpix = 50 # ! 50 is recommended, but I think it should be way more
 

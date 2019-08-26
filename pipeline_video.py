@@ -9,13 +9,13 @@ from moviepy.editor import VideoFileClip
 from IPython.display import HTML
 
 from find_lanes_utils import find_lane_pixels, search_around_poly
-from global_vars import ym_per_pix, xm_per_pix, thumb_ratio, H, W, vid_offx, vid_offy, \
-     prev_left_fit, prev_right_fit, sanity_ok
+from global_vars import ym_per_pix, xm_per_pix, thumb_ratio, H, W, vid_offx, vid_offy, ploty, \
+     prev_left_fit, prev_right_fit, sanity_ok, buffer_cap, frame_count, sum_left_fit, sum_right_fit, avg_left_fit, avg_right_fit
 
 '''
 FINE-TUNING GUIDE:
 1. sx_thresh = (45, 135), not (20, 100) => better expected lane line angle
-2. margin = 200, not 100 => too narrow, may not detect lane line if big curvature and disruption (shadow)
+2. margin = 200 or 400, not 100 => too narrow, may not detect lane line if big curvature and disruption (shadow)
 3. smoothing => big shadows
 '''
 
@@ -180,6 +180,8 @@ def fit_polynomial(binary_warped):
     right_bottom_x = right_fit[0]*H**2 + right_fit[1]*H + right_fit[2]
     center_bottom_x = (left_bottom_x + right_bottom_x) / 2
 
+    '''
+    # ! left&right_fitx is unecessary to be calculated here because of smoothing
     # Generate x and y values for plotting
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
     try:
@@ -190,7 +192,7 @@ def fit_polynomial(binary_warped):
         print('The function failed to fit a line!')
         left_fitx = 1*ploty**2 + 1*ploty
         right_fitx = 1*ploty**2 + 1*ploty
-
+    '''
     ## Visualization ##
     # Colors in the left and right lane regions
     top_down_poly[lefty, leftx] = [255, 0, 0]
@@ -204,8 +206,43 @@ def fit_polynomial(binary_warped):
     plt.plot(right_fitx, ploty, color='yellow')
     '''
     return top_down_poly, \
-           center_bottom_x, left_fitx, right_fitx, avg_curverad, \
+           center_bottom_x, avg_curverad, \
            left_fit, right_fit
+
+
+def smoothing(left_fit, right_fit):
+    # ! smoothing using a "frame buffer" to avoid sudden disruptions such as shadows
+    global frame_count
+    global sum_left_fit
+    global sum_right_fit
+    global avg_left_fit
+    global avg_right_fit
+
+    # * frame_count = [1,2,...,6]
+    if frame_count == buffer_cap:
+        frame_count = 1
+        sum_left_fit, sum_right_fit = [0, 0, 0], [0, 0, 0]
+        avg_left_fit, avg_right_fit = [0, 0, 0], [0, 0, 0]
+
+    sum_left_fit[0] += left_fit[0]
+    sum_left_fit[1] += left_fit[1]
+    sum_left_fit[2] += left_fit[2]
+
+    sum_right_fit[0] += right_fit[0]
+    sum_right_fit[1] += right_fit[1]
+    sum_right_fit[2] += right_fit[2]
+
+    # * use frame_count as denominator to ensure avg_left&right_fit exist for all frames
+    for idx in range(len(sum_left_fit)):
+        avg_left_fit[idx] = sum_left_fit[idx] / frame_count
+        avg_right_fit[idx] = sum_right_fit[idx] / frame_count
+
+    avg_left_fitx = avg_left_fit[0]*ploty**2 + avg_left_fit[1]*ploty + avg_left_fit[2]
+    avg_right_fitx = avg_right_fit[0]*ploty**2 + avg_right_fit[1]*ploty + avg_right_fit[2]
+
+    frame_count += 1
+
+    return avg_left_fitx, avg_right_fitx
 
 
 def warp_back(top_down, left_fitx, right_fitx, Minv, \
@@ -226,7 +263,6 @@ def warp_back(top_down, left_fitx, right_fitx, Minv, \
 
         return hud_text
 
-    ploty = np.linspace(0, 719, num=H)# to cover same y-range as image
 
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(top_down).astype(np.uint8)
@@ -293,7 +329,6 @@ def warp_back(top_down, left_fitx, right_fitx, Minv, \
     blend_vidout[vid_offy:thumb_h+vid_offy, vid_offx:vid_offx+thumb_w, :] = clr_grad_out
     blend_vidout[vid_offy:thumb_h+vid_offy, 2*vid_offx+thumb_w:2*(vid_offx+thumb_w), :] = top_down
     blend_vidout[vid_offy:thumb_h+vid_offy, 3*vid_offx+2*thumb_w:3*(vid_offx+thumb_w), :] = top_down_poly
-    # blend_vidout = cv2.addWeighted(blend_vidout, 1, top_down_poly, 0.5, 0)
 
     return blend_vidout
 
@@ -311,7 +346,7 @@ def process_image(img):
 
     top_down, perspective_M, Minv, undist_clr = undist_warp(clr_grad_out, mtx, dist, img)
 
-    top_down_poly, center_bottom_x, left_fitx, right_fitx, avg_curverad, \
+    top_down_poly, center_bottom_x, avg_curverad, \
     left_fit, right_fit = fit_polynomial(top_down)
 
     # ! update GLOBALS for left*right_fit
@@ -320,9 +355,9 @@ def process_image(img):
     prev_left_fit = left_fit
     prev_right_fit = right_fit
 
-    # ! add checks & improvements here
+    avg_left_fitx, avg_right_fitx = smoothing(left_fit, right_fit)
 
-    blend_vidout = warp_back(top_down, left_fitx, right_fitx, Minv, \
+    blend_vidout = warp_back(top_down, avg_left_fitx, avg_right_fitx, Minv, \
                              img, undist_clr, top_down_poly, clr_grad_out, \
                              avg_curverad, center_bottom_x)
 
@@ -330,11 +365,11 @@ def process_image(img):
 
 
 def main():
-    out_name = 'out_project_video_test2.mp4'
-    # clip1 = VideoFileClip("project_video.mp4").subclip(0,1)
+    out_name = 'out_project_video_smooth.mp4'
+    # clip1 = VideoFileClip("project_video.mp4").subclip(0,0.5)
     # clip1 = VideoFileClip("project_video.mp4").subclip(21, 25)
-    clip1 = VideoFileClip("project_video.mp4").subclip(38, 43)
-    # clip1 = VideoFileClip("project_video.mp4")
+    # clip1 = VideoFileClip("project_video.mp4").subclip(38, 43)
+    clip1 = VideoFileClip("project_video.mp4")
     out_video = clip1.fl_image(process_image) #NOTE: this function expects color images!!
     out_video.write_videofile(out_name, audio=False)
 
