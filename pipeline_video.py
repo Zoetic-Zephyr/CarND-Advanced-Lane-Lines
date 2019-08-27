@@ -365,7 +365,7 @@ def process_image(img):
 
 
 def main():
-    out_name = 'out_project_video_smooth.mp4'
+    out_name = 'out_project_video.mp4'
     # clip1 = VideoFileClip("project_video.mp4").subclip(0,0.5)
     # clip1 = VideoFileClip("project_video.mp4").subclip(21, 25)
     # clip1 = VideoFileClip("project_video.mp4").subclip(38, 43)
